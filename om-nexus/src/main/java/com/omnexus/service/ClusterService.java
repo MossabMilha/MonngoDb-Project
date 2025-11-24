@@ -13,6 +13,9 @@ import java.util.List;
 
 @Service
 public class ClusterService {
+
+
+
     public ClusterConfig createCluster(String clusterId, int shards, int configServers) {
         ClusterConfig config = new ClusterConfig();
         config.setClusterId(clusterId);
@@ -164,6 +167,11 @@ public class ClusterService {
             // Wait for mongos to start
             System.out.println("Waiting for mongos to start...");
             Thread.sleep(5000);
+            // Add mongos node to ClusterConfig
+            NodeInfo mongosNode = new NodeInfo("mongos", "mongos", 27999, "");
+            mongosNode.setStatus("running");
+            config.getNodes().add(mongosNode);
+
 
             // 3. Initialize shard replica sets and add to cluster
             System.out.println("Step 3: Initializing shard replica sets and adding to cluster...");

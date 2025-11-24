@@ -3,11 +3,12 @@ package com.omnexus.util;
 import com.mongodb.client.MongoClient;
 import com.mongodb.client.MongoClients;
 import com.mongodb.client.MongoDatabase;
+import com.omnexus.model.ClusterConfig;
 import org.bson.Document;
+import org.springframework.stereotype.Service;
 
 
-
-
+@Service
 public class MongoConnectionUtil {
     public static boolean initializeReplicateSet(String host,int port,String replicaSetName,String[] members){
         try(MongoClient client = MongoClients.create("mongodb://" + host + ":" + port)){
@@ -46,4 +47,19 @@ public class MongoConnectionUtil {
         }
 
     }
+    public static MongoClient createClient(String host,int port){
+        String uri = "mongodb://" + host + ":" + port;
+        return MongoClients.create(uri);
+    }
+    public static MongoClient createClient(String connectionString) {
+        return MongoClients.create(connectionString);
+    }
+    public static MongoClient createClientForNodeId(ClusterConfig config, String nodeId) {
+        return config.getNodes().stream()
+                .filter(n -> n.getNodeId().equals(nodeId))
+                .findFirst()
+                .map(n -> MongoClients.create("mongodb://localhost:" + n.getPort()))
+                .orElseThrow(() -> new RuntimeException("Node not found: " + nodeId));
+    }
+
 }
