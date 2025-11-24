@@ -235,4 +235,55 @@ public class ProcessManager {
             return false;
         }
     }
+    public static void killProcessesOnPort(int port) {
+        try {
+            String os = System.getProperty("os.name").toLowerCase();
+
+            if (os.contains("win")) {
+                // Windows: Find and kill process on port
+                ProcessBuilder findProcess = new ProcessBuilder(
+                        "cmd.exe", "/c",
+                        "for /f \"tokens=5\" %a in ('netstat -aon ^| findstr :" + port + "') do @echo %a"
+                );
+                Process process = findProcess.start();
+
+                BufferedReader reader = new BufferedReader(
+                        new InputStreamReader(process.getInputStream())
+                );
+
+                String pid;
+                while ((pid = reader.readLine()) != null) {
+                    pid = pid.trim();
+                    if (!pid.isEmpty() && pid.matches("\\d+")) {
+                        System.out.println("Killing process " + pid + " on port " + port);
+                        Runtime.getRuntime().exec("taskkill /F /PID " + pid);
+                    }
+                }
+
+            } else {
+                // Linux/Mac: Find and kill process on port
+                ProcessBuilder findProcess = new ProcessBuilder(
+                        "sh", "-c",
+                        "lsof -ti:" + port
+                );
+                Process process = findProcess.start();
+
+                BufferedReader reader = new BufferedReader(
+                        new InputStreamReader(process.getInputStream())
+                );
+
+                String pid;
+                while ((pid = reader.readLine()) != null) {
+                    pid = pid.trim();
+                    if (!pid.isEmpty()) {
+                        System.out.println("Killing process " + pid + " on port " + port);
+                        Runtime.getRuntime().exec("kill -9 " + pid);
+                    }
+                }
+            }
+
+        } catch (Exception e) {
+            System.err.println("Error killing process on port " + port + ": " + e.getMessage());
+        }
+    }
 }

@@ -3,6 +3,7 @@ package com.omnexus.controller;
 import com.omnexus.service.DatabaseService;
 import org.bson.Document;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 import java.util.Map;
@@ -75,4 +76,20 @@ public class DatabaseController {
         );
     }
 
+    // Bulk upload JSON file
+    @PostMapping("/{clusterId}/collection/{collectionName}/bulkUpload")
+    public Map<String,Object> bulkUpload(@PathVariable String clusterId, @RequestParam String databaseName, @PathVariable String collectionName, @RequestParam("file") MultipartFile file,@RequestParam(defaultValue = "1000") int batchSize){
+        try{
+            long insertedCount = databaseService.bulkInsertJson(clusterId,databaseName,collectionName,file,batchSize);
+            return Map.of(
+                    "success", true,
+                    "message", "Bulk upload completed. Documents inserted: " + insertedCount
+            );
+        } catch (Exception e) {
+            return Map.of(
+                    "success", false,
+                    "message", "Bulk upload failed: " + e.getMessage()
+            );
+        }
+    }
 }

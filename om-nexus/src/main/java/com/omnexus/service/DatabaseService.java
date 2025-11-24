@@ -1,5 +1,8 @@
 package com.omnexus.service;
 
+import com.fasterxml.jackson.core.JsonFactory;
+import com.fasterxml.jackson.core.JsonParser;
+import com.fasterxml.jackson.core.JsonToken;
 import com.mongodb.client.MongoClient;
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.MongoDatabase;
@@ -10,7 +13,9 @@ import com.omnexus.util.MongoConnectionUtil;
 import org.bson.Document;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -20,9 +25,11 @@ import java.util.Map;
 @Service
 public class DatabaseService {
     private final ConfigServerService configServerService;
+    private final ClusterService clusterService;
     @Autowired
-    public DatabaseService(ConfigServerService configServerService){
+    public DatabaseService(ConfigServerService configServerService,ClusterService clusterService){
         this.configServerService = configServerService;
+        this.clusterService = clusterService;
     }
     // Enable sharding on a database
     public boolean enableSharding(String clusterId,String databaseName){
@@ -137,12 +144,12 @@ public class DatabaseService {
                 long chunkCount = chunksCollection.countDocuments(Filters.eq("shard",shardId));
                 shardInfo.put("chunkCount",chunkCount);
 
-                try(MongoClient shardClient = MongoConnectionUtil.createClient(host)){
+                try(MongoClient shardClient = MongoConnectionUtil.createClientForShard(host)){
                     MongoDatabase shardDb = shardClient.getDatabase(databaseName);
                     long totalSize = 0;
                     for (String colName : shardDb.listCollectionNames()) {
                         Document stats = shardDb.runCommand(new Document("collStats", colName));
-                        totalSize += stats.getLong("size");
+                        totalSize += ((Number) stats.get("size")).longValue();
                     }
                     shardInfo.put("dataSize", totalSize);
                 }
@@ -205,12 +212,13 @@ public class DatabaseService {
                 shardInfo.put("host", host);
                 shardInfo.put("chunkCount", chunkCount);
 
-                try (MongoClient shardClient = MongoConnectionUtil.createClient(host)) {
+                try (MongoClient shardClient = MongoConnectionUtil.createClientForShard(host)) {
                     MongoDatabase shardDb = shardClient.getDatabase(databaseName);
                     long totalSize = 0;
                     if (shardDb.listCollectionNames().into(new ArrayList<>()).contains(collectionName)) {
                         Document stats = shardDb.runCommand(new Document("collStats", collectionName));
-                        totalSize = stats.getLong("size");
+                        Number sizeNum = (Number) stats.get("size");  // works for Integer or Long
+                        totalSize = sizeNum.longValue();
                     }
                     shardInfo.put("dataSize", totalSize);
                 }
@@ -222,5 +230,38 @@ public class DatabaseService {
             return Map.of("error", e.getMessage());
         }
         return distribution;
+    }
+    public long bulkInsertJson(String clusterId, String dbName, String collectionName, MultipartFile file, int batchSize) throws Exception {
+        MongoCollection<Document> collection = getCollection(clusterId,dbName,collectionName);
+        long totalInserted = 0;
+        List<Document> batch = new ArrayList<>();
+        JsonFactory factory = new JsonFactory();
+        try(InputStream inputStream = file.getInputStream(); JsonParser parser = factory.createParser(inputStream)){
+            // Expecting JSON array at the root
+            if(parser.nextToken() != JsonToken.START_ARRAY){
+                throw new IllegalArgumentException("JSON file must contain an array of documents at the root.");
+            }
+            while (parser.nextToken() != JsonToken.END_ARRAY) {
+                Document doc = Document.parse(parser.readValueAsTree().toString());
+                batch.add(doc);
+
+                if (batch.size() >= batchSize) {
+                    collection.insertMany(batch);
+                    totalInserted += batch.size();
+                    batch.clear();
+                }
+            }
+            // Insert remaining documents
+            if (!batch.isEmpty()) {
+                collection.insertMany(batch);
+                totalInserted += batch.size();
+            }
+            return totalInserted;
+        }
+    }
+    // Utility method to get MongoCollection from clusterId/dbName/collectionName
+    private MongoCollection<Document> getCollection(String clusterId, String dbName, String collectionName) {
+        ClusterConfig config = configServerService.loadClusterConfig(clusterId); // get the ClusterConfig
+        return MongoConnectionUtil.getDatabase(config, dbName).getCollection(collectionName);
     }
 }
