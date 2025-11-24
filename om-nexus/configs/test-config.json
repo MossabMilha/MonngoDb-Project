@@ -1,0 +1,44 @@
+{
+  "clusterId" : "test",
+  "numberOfShards" : 2,
+  "numberOfConfigServers" : 3,
+  "replicaSetSize" : 0,
+  "baseDataPath" : "C:\\Users\\PC\\Desktop\\Academic Project\\MongoDb-Project\\om-nexus\\data",
+  "basePort" : 28000,
+  "nodes" : [ {
+    "nodeId" : "config-1",
+    "type" : "config",
+    "port" : 28000,
+    "status" : "running",
+    "dataPath" : "C:\\Users\\PC\\Desktop\\Academic Project\\MongoDb-Project\\om-nexus\\data\\config\\configsvr1",
+    "replicaSet" : "configReplSet"
+  }, {
+    "nodeId" : "config-2",
+    "type" : "config",
+    "port" : 28001,
+    "status" : "running",
+    "dataPath" : "C:\\Users\\PC\\Desktop\\Academic Project\\MongoDb-Project\\om-nexus\\data\\config\\configsvr2",
+    "replicaSet" : "configReplSet"
+  }, {
+    "nodeId" : "config-3",
+    "type" : "config",
+    "port" : 28002,
+    "status" : "running",
+    "dataPath" : "C:\\Users\\PC\\Desktop\\Academic Project\\MongoDb-Project\\om-nexus\\data\\config\\configsvr3",
+    "replicaSet" : "configReplSet"
+  }, {
+    "nodeId" : "shard-1",
+    "type" : "shard",
+    "port" : 28003,
+    "status" : "running",
+    "dataPath" : "C:\\Users\\PC\\Desktop\\Academic Project\\MongoDb-Project\\om-nexus\\data\\shard\\shard1",
+    "replicaSet" : "shard1"
+  }, {
+    "nodeId" : "shard-2",
+    "type" : "shard",
+    "port" : 28004,
+    "status" : "running",
+    "dataPath" : "C:\\Users\\PC\\Desktop\\Academic Project\\MongoDb-Project\\om-nexus\\data\\shard\\shard2",
+    "replicaSet" : "shard2"
+  } ]
+}

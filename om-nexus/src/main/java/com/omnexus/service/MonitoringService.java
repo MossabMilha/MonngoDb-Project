@@ -125,94 +125,96 @@ public class MonitoringService {
 
         return metrics;
     }
-    public Map<String,Object> getRealTimeClusterStatus(ClusterConfig config){
-        Map<String,Object> realTimeStatus = new HashMap<>();
+    public Map<String, Object> getRealtimeClusterStatus(ClusterConfig config) {
+        Map<String, Object> realTimeStatus = new HashMap<>();
         ClusterStatus clusterStatus = getClusterStatus(config);
 
         // Real-time cluster overview
-        realTimeStatus.put("clusterId",config.getClusterId());
-        realTimeStatus.put("timestamp",LocalDateTime.now().toString());
-        realTimeStatus.put("overallStatus",clusterStatus.getStatus());
-        realTimeStatus.put("isHealthy",clusterStatus.isHealthy());
+        realTimeStatus.put("clusterId", config.getClusterId());
+        realTimeStatus.put("timestamp", LocalDateTime.now().toString());
+        realTimeStatus.put("overallStatus", clusterStatus.getStatus());
+        realTimeStatus.put("isHealthy", clusterStatus.isHealthy());
 
         // Node status breakdown
-        Map<String,Object> nodeBreakdown = new HashMap<>();
-        nodeBreakdown.put("total",clusterStatus.getTotalNodes());
-        nodeBreakdown.put("running",clusterStatus.getRunningNodes());
-        nodeBreakdown.put("stopped",clusterStatus.getStoppedNodes());
-        nodeBreakdown.put("healthPercentage",clusterStatus.getHealthPercentage());
-        realTimeStatus.put("node",nodeBreakdown);
+        Map<String, Object> nodeBreakdown = new HashMap<>();
+        nodeBreakdown.put("total", clusterStatus.getTotalNodes());
+        nodeBreakdown.put("running", clusterStatus.getRunningNodes());
+        nodeBreakdown.put("stopped", clusterStatus.getStoppedNodes());
+        nodeBreakdown.put("healthPercentage", clusterStatus.getHealthPercentage());
+        realTimeStatus.put("nodes", nodeBreakdown);
 
         // Service status
-        Map<String,Object> services = new HashMap<>();
-        services.put("mongos",clusterStatus.isMongosRunning());
-        services.put("configServers",clusterStatus.getConfigServers());
-        services.put("shardServers",clusterStatus.getShardServers());
-        realTimeStatus.put("services",services);
+        Map<String, Object> services = new HashMap<>();
+        services.put("mongos", clusterStatus.isMongosRunning());
+        services.put("configServers", clusterStatus.getConfigServers());
+        services.put("shardServers", clusterStatus.getShardServers());
+        realTimeStatus.put("services", services);
 
-        // Replica set Status
-        Map<String,Object> replicaSets = new HashMap<>();
-        replicaSets.put("total",clusterStatus.getTotalReplicaSets());
-        replicaSets.put("active",clusterStatus.getActiveReplicaSets());
-        replicaSets.put("replicaSets",replicaSets);
+        // Replica set status
+        Map<String, Object> replicaSets = new HashMap<>();
+        replicaSets.put("total", clusterStatus.getTotalReplicaSets());
+        replicaSets.put("active", clusterStatus.getActiveReplicaSets());
+        realTimeStatus.put("replicaSets", replicaSets);
 
         // Shard status
-        Map<String,Object> shards = new HashMap<>();
-        shards.put("total",clusterStatus.getTotalShards());
-        shards.put("active",clusterStatus.getActiveShards());
-        realTimeStatus.put("shards",shards);
+        Map<String, Object> shards = new HashMap<>();
+        shards.put("total", clusterStatus.getTotalShards());
+        shards.put("active", clusterStatus.getActiveShards());
+        realTimeStatus.put("shards", shards);
 
         return realTimeStatus;
     }
-    public Map<String,Object> getDetailedHealthStatus(ClusterConfig config){
-        Map<String,Object> detailedHealth = new HashMap<>();
+    public Map<String, Object> getDetailedHealthCheck(ClusterConfig config) {
+        Map<String, Object> detailedHealth = new HashMap<>();
         List<NodeStatus> nodeStatuses = nodeService.getNodeStatuses(config);
 
         // Overall health summary
-        detailedHealth.put("clusterId",config.getClusterId());
-        detailedHealth.put("timestamp",LocalDateTime.now().toString());
+        detailedHealth.put("clusterId", config.getClusterId());
+        detailedHealth.put("timestamp", LocalDateTime.now().toString());
 
         // Node health details
-        List<Map<String,Object>> nodeHealthDetails = new ArrayList<>();
-        for(NodeStatus nodeStatus : nodeStatuses){
-            Map<String,Object> nodeHealth = new HashMap<>();
-            nodeHealth.put("nodeId",nodeStatus.getNodeId());
-            nodeHealth.put("type",nodeStatus.getType());
-            nodeHealth.put("port",nodeStatus.getPort());
-            nodeHealth.put("status",nodeStatus.getStatus());
-            nodeHealth.put("isHealthy",nodeStatus.isHealthy());
-            nodeHealth.put("replicaSet",nodeStatus.getReplicaSet());
-            nodeHealth.put("lastPing",nodeStatus.getLastPing());
-            nodeHealth.put("uptime",nodeStatus.getUptime());
+        List<Map<String, Object>> nodeHealthDetails = new ArrayList<>();
+        for (NodeStatus nodeStatus : nodeStatuses) {
+            Map<String, Object> nodeHealth = new HashMap<>();
+            nodeHealth.put("nodeId", nodeStatus.getNodeId());
+            nodeHealth.put("type", nodeStatus.getType());
+            nodeHealth.put("port", nodeStatus.getPort());
+            nodeHealth.put("status", nodeStatus.getStatus());
+            nodeHealth.put("isHealthy", nodeStatus.isHealthy());
+            nodeHealth.put("replicaSet", nodeStatus.getReplicaSet());
+            nodeHealth.put("lastPing", nodeStatus.getLastPing());
+            nodeHealth.put("uptime", nodeStatus.getUptime());
 
             nodeHealthDetails.add(nodeHealth);
         }
-        detailedHealth.put("nodeDetails",nodeHealthDetails);
+        detailedHealth.put("nodeDetails", nodeHealthDetails);
 
         // Health statistics
-        Map<String,Object> healthStats = new HashMap<>();
+        Map<String, Object> healthStats = new HashMap<>();
         long healthyNodes = nodeStatuses.stream().filter(NodeStatus::isHealthy).count();
-        long unhealthyNodes = nodeStatuses.size()-healthyNodes;
+        long unhealthyNodes = nodeStatuses.size() - healthyNodes;
 
-        healthStats.put("healthyNodes",healthyNodes);
-        healthStats.put("unhealthyNodes",unhealthyNodes);
-        healthStats.put("totalNodes",nodeStatuses.size());
-        healthStats.put("healthPercentage", !nodeStatuses.isEmpty() ? ((double)healthyNodes/nodeStatuses.size() *100) : 0);
-        detailedHealth.put("healthStats",healthStats);
+        healthStats.put("healthyNodes", healthyNodes);
+        healthStats.put("unhealthyNodes", unhealthyNodes);
+        healthStats.put("totalNodes", nodeStatuses.size());
+        healthStats.put("healthPercentage", !nodeStatuses.isEmpty() ? 
+            ((double) healthyNodes / nodeStatuses.size() * 100) : 0);
+        detailedHealth.put("healthStats", healthStats);
 
         // Critical services status
-        Map<String,Object> criticalServices = new HashMap<>();
-        criticalServices.put("mongosRunning",ProcessManager.isProcessRunning("mogos"));
-        criticalServices.put("configServersHealthy",nodeStatuses.stream()
-                .filter(n->"config".equals(n.getType()))
-                .allMatch(NodeStatus::isHealthy)
-        );
-        criticalServices.put("shardsHealthy",nodeStatuses.stream()
-                .filter(n->"shard".equals(n.getType()))
+        Map<String, Object> criticalServices = new HashMap<>();
+        criticalServices.put("mongosRunning", ProcessManager.isProcessRunning("mongos"));
+        criticalServices.put("configServersHealthy", nodeStatuses.stream()
+                .filter(n -> "config".equals(n.getType()))
+                .allMatch(NodeStatus::isHealthy));
+        criticalServices.put("shardsHealthy", nodeStatuses.stream()
+                .filter(n -> "shard".equals(n.getType()))
                 .allMatch(NodeStatus::isHealthy));
 
-        detailedHealth.put("criticalServices",criticalServices);
+        detailedHealth.put("criticalServices", criticalServices);
         return detailedHealth;
     }
-
+    public NodeStatus getIndividualNodeStatus(String nodeId, ClusterConfig config) {
+        return nodeService.getNodeStatus(nodeId, config);
+    }
 }
