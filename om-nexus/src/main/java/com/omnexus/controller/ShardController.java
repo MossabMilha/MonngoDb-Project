@@ -21,12 +21,34 @@ public class ShardController {
     private ConfigServerService configurationService;
 
     @GetMapping
-    public List<ShardInfo> getAllShards(@PathVariable String clusterId) {
+    public Object getAllShards(@PathVariable String clusterId) {
         ClusterConfig config = configurationService.loadClusterConfig(clusterId);
         if (config == null) {
-            throw new RuntimeException("Cluster configuration not found: " + clusterId);
+            return Map.of(
+                    "success", false,
+                    "message", "Cluster configuration not found: " + clusterId
+            );
         }
         return shardService.getShardStatus(config);
+    }
+
+    @GetMapping("/{shardId}")
+    public Object getShardById(@PathVariable String clusterId, @PathVariable String shardId) {
+        ClusterConfig config = configurationService.loadClusterConfig(clusterId);
+        if (config == null) {
+            return Map.of(
+                    "success", false,
+                    "message", "Cluster configuration not found: " + clusterId
+            );
+        }
+        ShardInfo shard = shardService.getShardById(config, shardId);
+        if (shard == null) {
+            return Map.of(
+                    "success", false,
+                    "message", "Shard not found: " + shardId
+            );
+        }
+        return shard;
     }
 
     // Add a shard using only shardId from the cluster config
@@ -40,17 +62,15 @@ public class ShardController {
             );
         }
 
-        // Get shard node from cluster config
-        String shardConnectionString = shardService.buildShardConnectionString(shardId, config);
+        // Create new shard node dynamically
+        boolean success = shardService.createAndAddNewShard(clusterId, shardId, config);
 
-        boolean success = shardService.addShardToCluster(shardConnectionString);
-
-        // Save updated config
+        // Save updated config with new shard
         configurationService.saveClusterConfig(config);
 
         return Map.of(
                 "success", success,
-                "message", success ? "Shard added successfully" : "Failed to add shard"
+                "message", success ? "New shard created and added successfully" : "Failed to create/add shard"
         );
     }
 
@@ -64,7 +84,7 @@ public class ShardController {
             );
         }
 
-        boolean success = shardService.removeShardFromCluster(shardId);
+        boolean success = shardService.removeShardFromCluster(config, shardId);
 
         configurationService.saveClusterConfig(config);
 
@@ -74,12 +94,56 @@ public class ShardController {
         );
     }
 
-    @PostMapping("/{shardId}/rebalance")
-    public Map<String, Object> rebalanceShard(@PathVariable String clusterId, @PathVariable String shardId) {
-        // TODO: Implement actual rebalance logic
+    // Rebalance - start the MongoDB balancer
+    @PostMapping("/rebalance")
+    public Map<String, Object> rebalanceShards(@PathVariable String clusterId) {
+        boolean success = shardService.rebalanceShards(clusterId);
         return Map.of(
-                "success", true,
-                "message", "Rebalance triggered for shard " + shardId
+                "success", success,
+                "message", success ? "Balancer started successfully" : "Failed to start balancer"
+        );
+    }
+
+    // Split chunks at specified points and distribute across shards
+    @PostMapping("/distribute")
+    public Map<String, Object> splitAndDistribute(
+            @PathVariable String clusterId,
+            @RequestParam String databaseName,
+            @RequestParam String collectionName,
+            @RequestParam String shardKey,
+            @RequestParam(required = false) List<String> splitPoints) {
+
+        // Convert string split points to appropriate types
+        List<Object> splitObjects = null;
+        if (splitPoints != null && !splitPoints.isEmpty()) {
+            splitObjects = new java.util.ArrayList<>();
+            for (String value : splitPoints) {
+                try {
+                    splitObjects.add(Integer.parseInt(value));
+                } catch (NumberFormatException e) {
+                    splitObjects.add(value);
+                }
+            }
+        }
+
+        boolean success = shardService.splitAndDistribute(clusterId, databaseName, collectionName, shardKey, splitObjects);
+        return Map.of(
+                "success", success,
+                "message", success ? "Chunks split and distributed successfully" : "Failed to split/distribute chunks"
+        );
+    }
+
+    // Move chunks to distribute evenly
+    @PostMapping("/moveChunks")
+    public Map<String, Object> moveChunks(
+            @PathVariable String clusterId,
+            @RequestParam String databaseName,
+            @RequestParam String collectionName) {
+
+        boolean success = shardService.moveChunksToShards(clusterId, databaseName, collectionName);
+        return Map.of(
+                "success", success,
+                "message", success ? "Chunks moved successfully" : "Failed to move chunks"
         );
     }
 }

@@ -1,0 +1,24 @@
+{
+  "clusterId" : "billing-cluster",
+  "timestamp" : "2025-11-26T21-27-28.863498100Z",
+  "artifacts" : [ {
+    "success" : false,
+    "type" : "config",
+    "path" : "backup\\billing-cluster\\2025-11-26T21-27-28.863498100Z\\config-db"
+  }, {
+    "type" : "shard",
+    "shard" : "shard1",
+    "path" : "backup\\billing-cluster\\2025-11-26T21-27-28.863498100Z\\shard-shard1",
+    "success" : true
+  }, {
+    "type" : "shard",
+    "shard" : "shard2",
+    "path" : "backup\\billing-cluster\\2025-11-26T21-27-28.863498100Z\\shard-shard2",
+    "success" : true
+  }, {
+    "type" : "shard",
+    "shard" : "shard4Rs",
+    "path" : "backup\\billing-cluster\\2025-11-26T21-27-28.863498100Z\\shard-shard4Rs",
+    "success" : true
+  } ]
+}

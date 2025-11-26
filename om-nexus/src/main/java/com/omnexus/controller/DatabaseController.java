@@ -5,6 +5,8 @@ import org.bson.Document;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -27,8 +29,20 @@ public class DatabaseController {
     }
     //Create a Shared collection
     @PostMapping("/{clusterId}/collection/create")
-    public Map<String,Object> createSharedCollection(@PathVariable String clusterId, @RequestParam String databaseName, @RequestParam String collectionName,@RequestParam String shardKey){
-        boolean success = databaseService.createShardedCollection(clusterId,databaseName,collectionName,shardKey);
+    public Map<String,Object> createSharedCollection(@PathVariable String clusterId, @RequestParam String databaseName, @RequestParam String collectionName,@RequestParam String shardKey,@RequestParam(required = false) List<String> splitValues /*optional*/){
+        // Covert string splitValues to Objects (numbers if possible)
+        List<Object> splitObjects = null;
+        if (splitValues != null && !splitValues.isEmpty()) {
+            splitObjects = new ArrayList<>();
+            for (String value : splitValues) {
+                try {
+                    splitObjects.add(Integer.parseInt(value));
+                } catch (NumberFormatException e) {
+                    splitObjects.add(value);
+                }
+            }
+        }
+        boolean success = databaseService.createShardedCollection(clusterId,databaseName,collectionName,shardKey,splitObjects);
         return Map.of(
                 "success", success,
                 "message", success ? "Sharded collection created: " + databaseName + "." + collectionName : "Failed to create sharded collection"
@@ -92,4 +106,16 @@ public class DatabaseController {
             );
         }
     }
+
+    @GetMapping("/{clusterId}/collection/documents")
+    public Map<String,Object> listDocumentWithShard(@PathVariable String clusterId,@RequestParam String databaseName,@RequestParam String collectionName,@RequestParam String shardKey){
+        List<Map<String,Object>> documents = databaseService.listDocumentsWithShard(clusterId,databaseName,collectionName,shardKey);
+
+        Map<String,Object> result = new HashMap<>();
+        result.put("success",true);
+        result.put("count", documents.size());
+        result.put("documents",documents);
+        return result;
+    }
+
 }

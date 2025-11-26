@@ -105,4 +105,59 @@ public class ConfigServerService {
     public void updateConfigCache(ClusterConfig config) {
         configCache.put(config.getClusterId(), config);
     }
+
+    /**
+     * Reset cluster config to a clean state with specified number of shards.
+     * Removes any failed/stopped shard entries and keeps only running ones.
+     */
+    public Map<String, Object> resetClusterConfig(String clusterId, int numberOfShards) {
+        ClusterConfig config = loadClusterConfig(clusterId);
+        if (config == null) {
+            return Map.of("success", false, "error", "Cluster not found: " + clusterId);
+        }
+
+        // Remove the config from cache to force reload
+        configCache.remove(clusterId);
+
+        // Count current nodes by type
+        long configNodes = config.getNodes().stream().filter(n -> "config".equals(n.getType())).count();
+        long shardNodes = config.getNodes().stream().filter(n -> "shard".equals(n.getType())).count();
+        long mongosNodes = config.getNodes().stream().filter(n -> "mongos".equals(n.getType())).count();
+
+        // Remove failed/stopped shard entries (keep only running ones up to numberOfShards)
+        var runningShards = config.getNodes().stream()
+                .filter(n -> "shard".equals(n.getType()))
+                .filter(n -> "running".equals(n.getStatus()))
+                .limit(numberOfShards)
+                .toList();
+
+        var otherNodes = config.getNodes().stream()
+                .filter(n -> !"shard".equals(n.getType()))
+                .toList();
+
+        // Rebuild nodes list
+        config.getNodes().clear();
+        config.getNodes().addAll(otherNodes);
+        config.getNodes().addAll(runningShards);
+
+        // Save the cleaned config
+        boolean saved = saveClusterConfig(config);
+
+        return Map.of(
+                "success", saved,
+                "clusterId", clusterId,
+                "configNodes", configNodes,
+                "shardsBefore", shardNodes,
+                "shardsAfter", runningShards.size(),
+                "mongosNodes", mongosNodes,
+                "message", saved ? "Config reset successfully" : "Failed to save config"
+        );
+    }
+
+    /**
+     * Clear config cache to force reload from disk
+     */
+    public void clearCache(String clusterId) {
+        configCache.remove(clusterId);
+    }
 }

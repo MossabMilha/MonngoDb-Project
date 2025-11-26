@@ -1,11 +1,13 @@
 package com.omnexus.util;
 
-import java.io.BufferedReader;
-import java.io.File;
-import java.io.IOException;
-import java.io.InputStreamReader;
+import java.io.*;
+import java.nio.file.Files;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipOutputStream;
 
 public class ProcessManager {
     private static final Map<String,Process> runningProcesses = new ConcurrentHashMap<>();
@@ -285,5 +287,156 @@ public class ProcessManager {
         } catch (Exception e) {
             System.err.println("Error killing process on port " + port + ": " + e.getMessage());
         }
+    }
+
+
+
+    private static String findMongoToolPath(String toolName) {
+        String[] possiblePaths = {
+            "C:\\Program Files\\MongoDB\\Server\\8.2\\bin\\" + toolName + ".exe",
+            "C:\\Program Files\\MongoDB\\Server\\8.0\\bin\\" + toolName + ".exe", 
+            "C:\\Program Files\\MongoDB\\Server\\7.0\\bin\\" + toolName + ".exe",
+            "C:\\Program Files\\MongoDB\\Server\\6.0\\bin\\" + toolName + ".exe",
+            "C:\\Program Files\\MongoDB\\Tools\\100\\bin\\" + toolName + ".exe",
+            "C:\\mongodb\\bin\\" + toolName + ".exe",
+            toolName + ".exe"
+        };
+        
+        System.out.println("Searching for " + toolName + "...");
+        for (String path : possiblePaths) {
+            File file = new File(path);
+            System.out.println("Checking: " + path + " - exists: " + file.exists());
+            if (file.exists()) {
+                System.out.println("Found " + toolName + " at: " + path);
+                return path;
+            }
+        }
+        
+        System.err.println("Could not find " + toolName + " in any standard location");
+        return toolName + ".exe";
+    }
+
+    public static boolean runMongoDump(String host,int port,String dbName,String outDir,boolean compress,boolean useOplog){
+        List<String> cmd = new ArrayList<>();
+        cmd.add(findMongoToolPath("mongodump"));
+        cmd.add("--host");
+        cmd.add(host+":"+port);
+        if(dbName != null && !dbName.isBlank()){
+            cmd.add("--db");
+            cmd.add(dbName);
+        }
+        cmd.add("--out");
+        cmd.add(outDir);
+        if(useOplog){
+            cmd.add("--oplog");
+        }
+        int rc = runProcessAndWait(cmd,outDir);
+        if (rc != 0) return false;
+        if (compress){
+            return compressDirectory(outDir);
+        }
+        return true;
+    }
+
+    public static boolean runMongoRestore(String host,int port,String dumpDir,boolean dropBeforeRestore,boolean decompress){
+        List<String> cmd = new ArrayList<>();
+        cmd.add(findMongoToolPath("mongorestore"));
+        cmd.add("--host");
+        cmd.add(host+":"+port);
+        if (dropBeforeRestore) cmd.add("--drop");
+        cmd.add(dumpDir);
+        int rc = runProcessAndWait(cmd,dumpDir);
+        return rc == 0;
+    }
+    public static boolean compressDirectory(String directoryPath){
+        File dir = new File(directoryPath);
+        if(!dir.exists() || !dir.isDirectory()){
+            System.err.println("Directory does not exist: " + directoryPath);
+            return false;
+        }
+        String os = System.getProperty("os.name").toLowerCase();
+        try{
+            if(os.contains("win")){
+                String zipFilePath = directoryPath+".zip";
+                try(FileOutputStream fos = new FileOutputStream(zipFilePath); ZipOutputStream zos = new ZipOutputStream(fos)){
+                    zipFolder(dir,dir.getName(),zos);
+                }
+                deleteDirectory(dir);
+                System.out.println("Compressed directory to " + zipFilePath);
+            }else{
+                String tarGzFile = directoryPath+".tar.gz";
+                ProcessBuilder processBuilder = new ProcessBuilder("tar","-czf",tarGzFile,"-C",dir.getParent(),dir.getName());
+                processBuilder.inheritIO();
+                Process p = processBuilder.start();
+                int rc = p.waitFor();
+                if(rc != 0) return false;
+                deleteDirectory(dir);
+                System.out.println("Compressed directory to " + tarGzFile);
+            }
+            return true;
+        } catch (Exception e) {
+            System.err.println("Failed to compress directory: " + e.getMessage());
+            e.printStackTrace();
+            return false;
+        }
+    }
+    // Recursive helper for ZIP
+    private static void zipFolder(File folder, String parentName, ZipOutputStream zos) throws IOException {
+        for (File file : folder.listFiles()) {
+            if (file.isDirectory()) {
+                zipFolder(file, parentName + "/" + file.getName(), zos);
+            } else {
+                try (FileInputStream fis = new FileInputStream(file)) {
+                    ZipEntry entry = new ZipEntry(parentName + "/" + file.getName());
+                    zos.putNextEntry(entry);
+                    byte[] buffer = new byte[4096];
+                    int len;
+                    while ((len = fis.read(buffer)) > 0) {
+                        zos.write(buffer, 0, len);
+                    }
+                    zos.closeEntry();
+                }
+            }
+        }
+    }
+
+
+    public static int runProcessAndWait(List<String> command, String workingDir) {
+        ProcessBuilder pb = new ProcessBuilder(command);
+        if (workingDir != null) pb.directory(new File(workingDir));
+        pb.redirectErrorStream(true);
+
+        try {
+            Process process = pb.start();
+
+            // Read process output
+            try (BufferedReader reader = new BufferedReader(
+                    new InputStreamReader(process.getInputStream()))) {
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    System.out.println(line);
+                }
+            }
+
+            int rc = process.waitFor();
+            if (rc != 0) {
+                System.err.println("Process failed with exit code " + rc + ": " + String.join(" ", command));
+            }
+            return rc;
+        } catch (Exception e) {
+            System.err.println("Failed to run process: " + e.getMessage());
+            e.printStackTrace();
+            return -1;
+        }
+    }
+
+    // Delete directory recursively
+    private static void deleteDirectory(File dir) throws IOException {
+        if (dir.isDirectory()) {
+            for (File f : dir.listFiles()) {
+                deleteDirectory(f);
+            }
+        }
+        Files.delete(dir.toPath());
     }
 }

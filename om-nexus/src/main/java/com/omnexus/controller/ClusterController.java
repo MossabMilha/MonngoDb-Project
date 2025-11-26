@@ -175,6 +175,7 @@ public class ClusterController {
 
             if (config != null) {
                 clusterService.stopCluster(config);
+                clusterService.deleteClusterData(config);
             }
 
             boolean deleted = configurationService.deleteClusterConfig(clusterId);

@@ -282,4 +282,42 @@ public class ClusterService {
             return false;
         }
     }
+
+    public boolean deleteClusterData(ClusterConfig config) {
+        System.out.println("=== Deleting Cluster Data ===");
+        boolean allDeleted = true;
+
+        for (NodeInfo node : config.getNodes()) {
+            if (!"mongos".equals(node.getType()) && !node.getDataPath().isEmpty()) {
+                try {
+                    File dataDir = new File(node.getDataPath());
+                    if (dataDir.exists()) {
+                        System.out.println("Deleting data directory: " + dataDir.getAbsolutePath());
+                        boolean deleted = deleteDirectory(dataDir);
+                        if (!deleted) {
+                            System.err.println("Failed to delete: " + dataDir.getAbsolutePath());
+                            allDeleted = false;
+                        }
+                    }
+                } catch (Exception e) {
+                    System.err.println("Error deleting data for node " + node.getNodeId() + ": " + e.getMessage());
+                    allDeleted = false;
+                }
+            }
+        }
+        
+        return allDeleted;
+    }
+
+    private boolean deleteDirectory(File directory) {
+        if (directory.isDirectory()) {
+            File[] files = directory.listFiles();
+            if (files != null) {
+                for (File file : files) {
+                    deleteDirectory(file);
+                }
+            }
+        }
+        return directory.delete();
+    }
 }

@@ -218,7 +218,7 @@ public class MongoConnectionUtil {
 
     public static MongoDatabase getDatabase(ClusterConfig clusterConfig, String dbName) {
         Optional<NodeInfo> nodeOpt = clusterConfig.getNodes().stream()
-                .filter(n -> n.getStatus().equals("RUNNING")) // pick a running node
+                .filter(n -> n.getNodeId().equals("mongos") && n.getStatus().equals("running")) // pick a running node
                 .findFirst();
 
         if (nodeOpt.isEmpty()) {
