@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Creating Cluster - MongoDB</title>
+  <link rel="stylesheet" href="css/initialization_progress_style.css">
+</head>
+<body>
+<div class="container">
+  <!-- Header -->
+  <div class="header">
+    <h1>Creating Cluster</h1>
+    <p>Please wait while we set up your cluster</p>
+  </div>
+
+  <!-- Progress Card -->
+  <div class="progress-card">
+    <!-- Progress Bar -->
+    <div class="progress-section">
+      <div class="progress-label" id="progress-percent">0%</div>
+      <div class="progress-bar-container">
+        <div class="progress-bar" id="progress-bar" style="width: 0%"></div>
+      </div>
+    </div>
+
+    <!-- Steps -->
+    <div class="steps">
+      <div class="step" id="step-1">Creating configuration files...</div>
+      <div class="step" id="step-2">Starting config servers...</div>
+      <div class="step" id="step-3">Starting shard servers...</div>
+      <div class="step" id="step-4">Starting mongos router...</div>
+      <div class="step" id="step-5">Initializing cluster...</div>
+    </div>
+
+    <!-- Button -->
+    <div class="button-group">
+      <button class="btn-primary" id="complete-btn">Go to Dashboard</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  const steps = [
+    { id: 1, duration: 2000 },
+    { id: 2, duration: 3000 },
+    { id: 3, duration: 3000 },
+    { id: 4, duration: 2000 },
+    { id: 5, duration: 4000 }
+  ];
+
+  let currentStep = 0;
+  const totalSteps = steps.length;
+  const progressBar = document.getElementById('progress-bar');
+  const progressPercent = document.getElementById('progress-percent');
+  const completeBtn = document.getElementById('complete-btn');
+
+  function updateProgress() {
+    const percent = Math.round((currentStep / totalSteps) * 100);
+    progressBar.style.width = percent + '%';
+    progressPercent.textContent = percent + '%';
+  }
+
+  function completeStep(stepNum) {
+    const stepEl = document.getElementById(`step-${stepNum}`);
+    stepEl.classList.remove('active');
+    stepEl.classList.add('completed');
+  }
+
+  function activateStep(stepNum) {
+    const stepEl = document.getElementById(`step-${stepNum}`);
+    stepEl.classList.add('active');
+  }
+
+  async function runSteps() {
+    for (let i = 0; i < steps.length; i++) {
+      const step = steps[i];
+      activateStep(step.id);
+
+      await new Promise(resolve => setTimeout(resolve, step.duration));
+
+      completeStep(step.id);
+      currentStep++;
+      updateProgress();
+    }
+
+    completeBtn.classList.add('show');
+  }
+
+  setTimeout(() => {
+    runSteps();
+  }, 500);
+
+  completeBtn.addEventListener('click', () => {
+    window.location.href = 'dashboard.html';
+  });
+</script>
+</body>
+</html>

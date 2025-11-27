@@ -24,12 +24,22 @@ public class AsyncConfig {
     }
 
     @Bean
+    public ThreadPoolTaskExecutor recoveryExecutor() {
+        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+        executor.setCorePoolSize(2);
+        executor.setMaxPoolSize(4);
+        executor.setQueueCapacity(10);
+        executor.setThreadNamePrefix("recovery-");
+        executor.initialize();
+        return executor;
+    }
+
+    @Bean
     public TaskScheduler taskScheduler() {
         ThreadPoolTaskScheduler scheduler = new ThreadPoolTaskScheduler();
         scheduler.setPoolSize(5);
         scheduler.setThreadNamePrefix("scheduler-");
         scheduler.initialize();
         return scheduler;
-
     }
 }

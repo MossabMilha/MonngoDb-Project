@@ -9,6 +9,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
+
 public class ProcessManager {
     private static final Map<String,Process> runningProcesses = new ConcurrentHashMap<>();
 
@@ -105,11 +106,16 @@ public class ProcessManager {
                 dataDir.mkdirs();
             }
 
-            // Remove stale lock file
+            // Remove stale lock files (both mongod.lock and WiredTiger.lock)
             File lockFile = new File(dataPath, "mongod.lock");
             if (lockFile.exists()) {
                 System.out.println("Removing stale lock file: " + lockFile.getAbsolutePath());
                 lockFile.delete();
+            }
+            File wiredTigerLock = new File(dataPath, "WiredTiger.lock");
+            if (wiredTigerLock.exists()) {
+                System.out.println("Removing stale WiredTiger lock file: " + wiredTigerLock.getAbsolutePath());
+                wiredTigerLock.delete();
             }
 
             String logPath = dataPath + File.separator + "mongod.log";
@@ -191,6 +197,13 @@ public class ProcessManager {
     public static boolean isProcessRunning(String nodeId){
         Process process = runningProcesses.get(nodeId);
         return process != null && process.isAlive();
+    }
+
+    /**
+     * Check if a process is running on a specific port (regardless of our tracking map)
+     */
+    public static boolean isProcessRunningOnPort(int port) {
+        return !isPortAvailable(port);
     }
     public static boolean startMongosProcess(String nodeId,int port,String configReplSet){
         try{
