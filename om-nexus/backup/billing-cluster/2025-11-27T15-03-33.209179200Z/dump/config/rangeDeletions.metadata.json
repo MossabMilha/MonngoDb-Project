@@ -1,0 +1,1 @@
+{"indexes":[{"v":{"$numberInt":"2"},"key":{"_id":{"$numberInt":"1"}},"name":"_id_"},{"v":{"$numberInt":"2"},"key":{"collectionUuid":{"$numberInt":"1"},"range.min":{"$numberInt":"1"},"range.max":{"$numberInt":"1"}},"name":"collectionUuid_1_range.min_1_range.max_1"}],"uuid":"f142ae5bb14b47af915c078c62b329b1","collectionName":"rangeDeletions","type":"collection"}

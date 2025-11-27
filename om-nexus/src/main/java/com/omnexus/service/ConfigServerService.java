@@ -6,10 +6,13 @@ import org.springframework.stereotype.Service;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 @Service
@@ -159,5 +162,31 @@ public class ConfigServerService {
      */
     public void clearCache(String clusterId) {
         configCache.remove(clusterId);
+    }
+
+    public List<String> getAllClusterIds() {
+        List<String> clusterIds = new ArrayList<>();
+        try {
+            Path configPath = Paths.get(CONFIG_DIR);
+            if (!Files.exists(configPath)) {
+                return clusterIds;
+            }
+
+            try (DirectoryStream<Path> stream = Files.newDirectoryStream(configPath, "*" + CONFIG_FILE_SUFFIX)) {
+                for (Path configFile : stream) {
+                    String fileName = configFile.getFileName().toString();
+                    // Remove the suffix to get cluster ID
+                    String clusterId = fileName.replace(CONFIG_FILE_SUFFIX, "");
+                    clusterIds.add(clusterId);
+                }
+            }
+
+            System.out.println("Found " + clusterIds.size() + " cluster configurations");
+            return clusterIds;
+
+        } catch (IOException e) {
+            System.err.println("Failed to list cluster configurations: " + e.getMessage());
+            return clusterIds;
+        }
     }
 }

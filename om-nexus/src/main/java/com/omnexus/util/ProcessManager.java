@@ -325,12 +325,16 @@ public class ProcessManager {
             cmd.add("--db");
             cmd.add(dbName);
         }
+        // Use absolute path to avoid nested directory issues
+        File outDirFile = new File(outDir);
+        String absoluteOutDir = outDirFile.getAbsolutePath();
         cmd.add("--out");
-        cmd.add(outDir);
+        cmd.add(absoluteOutDir);
         if(useOplog){
             cmd.add("--oplog");
         }
-        int rc = runProcessAndWait(cmd,outDir);
+        // Use current working directory instead of outDir to avoid path issues
+        int rc = runProcessAndWait(cmd, System.getProperty("user.dir"));
         if (rc != 0) return false;
         if (compress){
             return compressDirectory(outDir);
@@ -344,8 +348,25 @@ public class ProcessManager {
         cmd.add("--host");
         cmd.add(host+":"+port);
         if (dropBeforeRestore) cmd.add("--drop");
-        cmd.add(dumpDir);
-        int rc = runProcessAndWait(cmd,dumpDir);
+
+        // Extract database name from the directory path
+        File dumpDirFile = new File(dumpDir);
+        String dbName = dumpDirFile.getName();
+
+        // Use absolute path
+        String absoluteDumpDir = dumpDirFile.getAbsolutePath();
+
+        // Add --db flag to specify which database to restore to
+        // and --dir flag to specify the source directory
+        cmd.add("--db");
+        cmd.add(dbName);
+        cmd.add("--dir");
+        cmd.add(absoluteDumpDir);
+
+        System.out.println("Running mongorestore: " + String.join(" ", cmd));
+
+        // Use current working directory for process execution
+        int rc = runProcessAndWait(cmd, System.getProperty("user.dir"));
         return rc == 0;
     }
     public static boolean compressDirectory(String directoryPath){
@@ -439,4 +460,25 @@ public class ProcessManager {
         }
         Files.delete(dir.toPath());
     }
+    public static boolean decompressFile(String compressedFilePath,String outputDir){
+        try{
+            List<String> cmd = new ArrayList<>();
+            if(System.getProperty("os.name").toLowerCase().contains("win")){
+                cmd.add("tar");
+                cmd.add("-xzf");
+            }else{
+                cmd.add("tar");
+                cmd.add("-xzf");
+            }
+            cmd.add(compressedFilePath);
+            cmd.add("-C");
+            cmd.add(outputDir);
+            int rc = runProcessAndWait(cmd,outputDir);
+            return rc == 0;
+        } catch (Exception e) {
+            System.err.println("Failed to decompress file: " + e.getMessage());
+            return false;
+        }
+    }
+
 }

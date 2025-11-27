@@ -754,11 +754,35 @@ POST /api/backup/{clusterId}/reset-config?numberOfShards=2
 | **Error handling** | Needs better error messages when backup fails |
 | **Progress tracking** | No progress indication for large backups |
 
+### ⚠️ **CRITICAL: Runtime Failure Handling** ❌ NOT IMPLEMENTED
+
+| Issue | Description | Impact |
+|-------|-------------|---------|
+| **No Health Monitoring** | System doesn't detect when nodes fail during runtime | Failed nodes stay dead indefinitely |
+| **No Auto-Recovery** | No automatic restart of failed processes | Manual intervention required for every failure |
+| **No Failover Logic** | When a shard dies, data becomes permanently unavailable | Data loss and service interruption |
+| **No Alerting System** | No notifications when failures occur | Failures go unnoticed until users complain |
+| **No Process Monitoring** | No scheduled health checks of running processes | Zombie processes and resource leaks |
+| **No Backup-Based Recovery** | Failed nodes aren't automatically restored from backups | Data inconsistency after failures |
+
+### Production Readiness Issues:
+
+**What Happens When Things Fail:**
+- **Config Server Dies** → Cluster metadata unavailable, new operations fail ❌
+- **Shard Dies** → Data on that shard becomes inaccessible ❌  
+- **Mongos Dies** → Applications lose connection to cluster ❌
+- **Process Crashes** → Stays crashed until manual restart ❌
+- **Data Corruption** → No automatic recovery from backup ❌
+
 ### To Fix:
-1. Add check for mongodump/mongorestore availability
-2. Implement full cluster restore (not just individual shards)
-3. Add progress callbacks for large operations
-4. Better error messages when tools are missing
+1. **Add HealthMonitorService** - Scheduled health checks every 30 seconds
+2. **Add NodeRecoveryService** - Automatic restart and backup restoration
+3. **Add FailureController** - Manual recovery endpoints
+4. **Add Process Monitoring** - Track process health and auto-restart
+5. **Add Alerting** - Notifications when failures occur
+6. **Add Failover Logic** - Graceful handling of shard failures
+
+**⚠️ WARNING: Current system is NOT production-ready due to lack of failure handling.**
 
 ---
 

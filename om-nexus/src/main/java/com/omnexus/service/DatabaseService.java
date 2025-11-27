@@ -351,12 +351,11 @@ public class DatabaseService {
             MongoDatabase database = client.getDatabase(databaseName);
             MongoCollection<Document> collection = database.getCollection(collectionName);
 
-            // Get chunks - MongoDB 8.0 uses UUID instead of namespace string
+
             String namespace = databaseName + "." + collectionName;
             List<Document> chunksList = getChunksForCollection(configDatabase, chunksCollection, namespace);
             System.out.println("Found " + chunksList.size() + " chunks for collection " + collectionName);
 
-            // Get the primary shard as fallback (for unsharded collections or when chunks can't be determined)
             String primaryShard = getPrimaryShardForDatabase(configDatabase, databaseName);
             System.out.println("Primary shard for database " + databaseName + ": " + primaryShard);
 
@@ -365,12 +364,10 @@ public class DatabaseService {
                 String shardId;
 
                 if (chunksList.isEmpty()) {
-                    // No explicit chunks found, use primary shard
+
                     shardId = primaryShard != null ? primaryShard : "unknown";
                 } else if (shardKeyValueObj != null) {
-                    // Find the chunk that contains this shard key value
                     shardId = findShardForValue(chunksList, shardKey, shardKeyValueObj);
-                    // If still unknown, fall back to primary shard
                     if ("unknown".equals(shardId) && primaryShard != null) {
                         shardId = primaryShard;
                     }

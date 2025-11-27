@@ -1,0 +1,20 @@
+{
+  "databases" : [ "admin", "billing", "config" ],
+  "success" : true,
+  "dumpPath" : "backup\\billing-cluster\\2025-11-27T15-02-52.828311Z\\dump",
+  "clusterId" : "billing-cluster",
+  "compressed" : true,
+  "timestamp" : "2025-11-27T15-02-52.828311Z",
+  "artifacts" : [ {
+    "type" : "mongos-dump",
+    "success" : true,
+    "port" : 27999
+  }, {
+    "type" : "config",
+    "success" : true,
+    "port" : 28000
+  }, {
+    "success" : true,
+    "type" : "compression"
+  } ]
+}

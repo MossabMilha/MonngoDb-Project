@@ -47,12 +47,5 @@
     "status" : "running",
     "dataPath" : "",
     "replicaSet" : null
-  }, {
-    "nodeId" : "shard-4",
-    "type" : "shard",
-    "port" : 28005,
-    "status" : "stopped",
-    "dataPath" : "C:\\Users\\PC\\Desktop\\Academic Project\\MongoDb-Project\\om-nexus\\data\\shard\\shard-4",
-    "replicaSet" : "shard4Rs"
   } ]
 }
