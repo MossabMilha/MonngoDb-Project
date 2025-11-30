@@ -11,7 +11,7 @@
   <!-- Header -->
   <div class="header">
     <h1>Creating Cluster</h1>
-    <p>Please wait while we set up your cluster</p>
+    <p id="cluster-name">Please wait while we set up your cluster</p>
   </div>
 
   <!-- Progress Card -->
@@ -27,35 +27,37 @@
     <!-- Steps -->
     <div class="steps">
       <div class="step" id="step-1">Creating configuration files...</div>
-      <div class="step" id="step-2">Starting config servers...</div>
-      <div class="step" id="step-3">Starting shard servers...</div>
-      <div class="step" id="step-4">Starting mongos router...</div>
-      <div class="step" id="step-5">Initializing cluster...</div>
+      <div class="step" id="step-2">Starting cluster nodes...</div>
+      <div class="step" id="step-3">Initializing replica sets...</div>
     </div>
+
+    <!-- Error Message -->
+    <div id="error-message" class="error-message" style="display: none;"></div>
 
     <!-- Button -->
     <div class="button-group">
+      <button class="btn-primary btn-error" id="retry-btn">Retry</button>
       <button class="btn-primary" id="complete-btn">Go to Dashboard</button>
     </div>
   </div>
 </div>
 
 <script>
-  const steps = [
-    { id: 1, duration: 2000 },
-    { id: 2, duration: 3000 },
-    { id: 3, duration: 3000 },
-    { id: 4, duration: 2000 },
-    { id: 5, duration: 4000 }
-  ];
+  const API_BASE = 'http://localhost:9090/api';
 
-  let currentStep = 0;
-  const totalSteps = steps.length;
   const progressBar = document.getElementById('progress-bar');
   const progressPercent = document.getElementById('progress-percent');
   const completeBtn = document.getElementById('complete-btn');
+  const retryBtn = document.getElementById('retry-btn');
+  const errorMessage = document.getElementById('error-message');
+  const clusterNameEl = document.getElementById('cluster-name');
 
-  function updateProgress() {
+  let currentStep = 0;
+  const totalSteps = 3;
+  let clusterData = null;
+
+  function updateProgress(step) {
+    currentStep = step;
     const percent = Math.round((currentStep / totalSteps) * 100);
     progressBar.style.width = percent + '%';
     progressPercent.textContent = percent + '%';
@@ -72,28 +74,178 @@
     stepEl.classList.add('active');
   }
 
-  async function runSteps() {
-    for (let i = 0; i < steps.length; i++) {
-      const step = steps[i];
-      activateStep(step.id);
-
-      await new Promise(resolve => setTimeout(resolve, step.duration));
-
-      completeStep(step.id);
-      currentStep++;
-      updateProgress();
-    }
-
-    completeBtn.classList.add('show');
+  function failStep(stepNum) {
+    const stepEl = document.getElementById(`step-${stepNum}`);
+    stepEl.classList.remove('active');
+    stepEl.classList.add('failed');
   }
 
-  setTimeout(() => {
-    runSteps();
-  }, 500);
+  function showError(message) {
+    errorMessage.textContent = message;
+    errorMessage.style.display = 'block';
+    retryBtn.classList.add('show');
+  }
+
+  function hideError() {
+    errorMessage.style.display = 'none';
+    retryBtn.classList.remove('show');
+  }
+
+  function resetSteps() {
+    for (let i = 1; i <= totalSteps; i++) {
+      const stepEl = document.getElementById(`step-${i}`);
+      stepEl.classList.remove('active', 'completed', 'failed');
+    }
+    currentStep = 0;
+    updateProgress(0);
+    hideError();
+    completeBtn.classList.remove('show');
+  }
+
+  async function createCluster() {
+    activateStep(1);
+
+    const params = new URLSearchParams({
+      clusterId: clusterData.clusterId,
+      shards: clusterData.shards,
+      configServers: clusterData.configServers
+    });
+
+    const response = await fetch(`${API_BASE}/cluster/create?${params}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' }
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+
+      // Handle 409 Conflict - cluster already exists
+      if (response.status === 409) {
+        const useExisting = confirm(`Cluster "${clusterData.clusterId}" already exists. Do you want to use the existing cluster instead?`);
+        if (useExisting) {
+          // Skip creation, mark as complete and continue
+          completeStep(1);
+          updateProgress(1);
+          return { existing: true };
+        } else {
+          throw new Error('Cluster already exists. Please use a different cluster ID.');
+        }
+      }
+
+      throw new Error(error.error || 'Failed to create cluster');
+    }
+
+    completeStep(1);
+    updateProgress(1);
+    return await response.json();
+  }
+
+  async function startCluster() {
+    activateStep(2);
+
+    const response = await fetch(`${API_BASE}/cluster/${clusterData.clusterId}/start`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' }
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || 'Failed to start cluster');
+    }
+
+    completeStep(2);
+    updateProgress(2);
+    return await response.json();
+  }
+
+  async function initializeCluster() {
+    activateStep(3);
+
+    const response = await fetch(`${API_BASE}/cluster/${clusterData.clusterId}/initialize`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' }
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || 'Failed to initialize cluster');
+    }
+
+    completeStep(3);
+    updateProgress(3);
+    return await response.json();
+  }
+
+  async function runSetup() {
+    try {
+      // Step 1: Create cluster configuration
+      await createCluster();
+      await new Promise(resolve => setTimeout(resolve, 500));
+
+      // Step 2: Start cluster nodes
+      await startCluster();
+      await new Promise(resolve => setTimeout(resolve, 500));
+
+      // Step 3: Initialize replica sets
+      await initializeCluster();
+
+      // All done!
+      completeBtn.classList.add('show');
+
+      // Store the cluster ID for dashboard
+      sessionStorage.setItem('currentClusterId', clusterData.clusterId);
+
+    } catch (error) {
+      const activeStep = document.querySelector('.step.active');
+      if (activeStep) {
+        const stepNum = parseInt(activeStep.id.split('-')[1]);
+        failStep(stepNum);
+      }
+      showError(error.message);
+    }
+  }
+
+  // Initialize
+  function init() {
+    const pendingCluster = sessionStorage.getItem('pendingCluster');
+
+    if (!pendingCluster) {
+      // Check if we already have cluster data (retry scenario)
+      if (clusterData) {
+        setTimeout(() => runSetup(), 500);
+        return;
+      }
+      alert('No cluster data found. Please start from the create cluster page.');
+      window.location.href = 'index.html';
+      return;
+    }
+
+    clusterData = JSON.parse(pendingCluster);
+    clusterNameEl.textContent = `Setting up cluster: ${clusterData.clusterId}`;
+
+    // Don't remove pending data yet - keep it for retry
+    // sessionStorage.removeItem('pendingCluster');
+
+    // Start setup after a brief delay
+    setTimeout(() => {
+      runSetup();
+    }, 500);
+  }
+
+  retryBtn.addEventListener('click', () => {
+    resetSteps();
+    // Re-store the cluster data for retry
+    sessionStorage.setItem('pendingCluster', JSON.stringify(clusterData));
+    init();
+  });
 
   completeBtn.addEventListener('click', () => {
-    window.location.href = 'dashboard.html';
+    // Clear pending data now that we're done
+    sessionStorage.removeItem('pendingCluster');
+    window.location.href = `dashboard.html?clusterId=${clusterData.clusterId}`;
   });
+
+  init();
 </script>
 </body>
 </html>

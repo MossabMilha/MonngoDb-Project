@@ -16,42 +16,127 @@
 
   <!-- Form -->
   <div class="form-card">
-    <form>
+    <form id="cluster-form">
       <div class="form-group">
-        <label>Cluster ID</label>
+        <label for="cluster-id">Cluster ID</label>
         <input
           type="text"
+          id="cluster-id"
           placeholder="my-cluster"
           required
         >
       </div>
 
       <div class="form-group">
-        <label>Number of Shards</label>
+        <label for="num-shards">Number of Shards</label>
         <input
-          placeholder="0"
+          id="num-shards"
+          placeholder="2"
           type="number"
           min="1"
           max="10"
+          value="2"
+          required
         >
       </div>
 
       <div class="form-group">
-        <label>Config Servers</label>
+        <label for="config-servers">Config Servers</label>
         <input
-          placeholder="0"
+          id="config-servers"
+          placeholder="3"
           type="number"
           min="1"
           max="5"
+          value="3"
+          required
         >
       </div>
 
+      <!-- Error Message -->
+      <div id="error-message" class="error-message" style="display: none;"></div>
+
       <div class="button-group">
-        <button type="button" class="btn-secondary">Cancel</button>
-        <button type="submit" class="btn-primary">Create Cluster</button>
+        <button type="button" class="btn-secondary" id="cancel-btn">Cancel</button>
+        <button type="submit" class="btn-primary" id="submit-btn">Create Cluster</button>
       </div>
     </form>
   </div>
 </div>
+
+<script>
+  const API_BASE = 'http://localhost:9090/api';
+
+  const form = document.getElementById('cluster-form');
+  const clusterIdInput = document.getElementById('cluster-id');
+  const numShardsInput = document.getElementById('num-shards');
+  const configServersInput = document.getElementById('config-servers');
+  const errorMessage = document.getElementById('error-message');
+  const submitBtn = document.getElementById('submit-btn');
+  const cancelBtn = document.getElementById('cancel-btn');
+
+  function showError(message) {
+    errorMessage.textContent = message;
+    errorMessage.style.display = 'block';
+  }
+
+  function hideError() {
+    errorMessage.style.display = 'none';
+  }
+
+  function setLoading(loading) {
+    submitBtn.disabled = loading;
+    submitBtn.textContent = loading ? 'Creating...' : 'Create Cluster';
+  }
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    hideError();
+
+    const clusterId = clusterIdInput.value.trim();
+    const shards = parseInt(numShardsInput.value, 10);
+    const configServers = parseInt(configServersInput.value, 10);
+
+    if (!clusterId) {
+      showError('Please enter a Cluster ID');
+      return;
+    }
+
+    if (shards < 1 || shards > 10) {
+      showError('Number of shards must be between 1 and 10');
+      return;
+    }
+
+    if (configServers < 1 || configServers > 5) {
+      showError('Config servers must be between 1 and 5');
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      // Store cluster info for the progress page
+      sessionStorage.setItem('pendingCluster', JSON.stringify({
+        clusterId,
+        shards,
+        configServers
+      }));
+
+      // Navigate to progress page
+      window.location.href = 'initialization_progress.html';
+
+    } catch (error) {
+      showError('Failed to proceed: ' + error.message);
+      setLoading(false);
+    }
+  });
+
+  cancelBtn.addEventListener('click', () => {
+    clusterIdInput.value = '';
+    numShardsInput.value = '2';
+    configServersInput.value = '3';
+    hideError();
+  });
+</script>
 </body>
 </html>

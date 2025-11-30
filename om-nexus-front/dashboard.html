@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Cluster Dashboard - MongoDB</title>
+  <link rel="stylesheet" href="css/dashboard.css">
+</head>
+<body>
+<!-- Toast Notification Container -->
+<div id="toast-container"></div>
+
+<!-- Modal Container -->
+<div id="modal-overlay" class="modal-overlay hidden">
+  <div class="modal" id="modal-content">
+    <div class="modal-header">
+      <h3 id="modal-title">Modal Title</h3>
+      <button class="modal-close" onclick="closeModal()">&times;</button>
+    </div>
+    <div class="modal-body" id="modal-body"></div>
+    <div class="modal-footer" id="modal-footer"></div>
+  </div>
+</div>
+
+<div class="dashboard-container">
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <div class="logo">
+      <h2>OM NEXUS</h2>
+      <span>Cluster Manager</span>
+    </div>
+    <nav class="nav-menu">
+      <a href="javascript:void(0)" class="nav-item active" data-section="overview">Overview</a>
+      <a href="javascript:void(0)" class="nav-item" data-section="nodes">Nodes</a>
+      <a href="javascript:void(0)" class="nav-item" data-section="shards">Shards</a>
+      <a href="javascript:void(0)" class="nav-item" data-section="databases">Databases</a>
+      <a href="javascript:void(0)" class="nav-item" data-section="data">Data Management</a>
+      <a href="javascript:void(0)" class="nav-item" data-section="backup">Backup & Restore</a>
+    </nav>
+    <div class="sidebar-footer">
+      <a href="index.html" class="nav-item">+ New Cluster</a>
+    </div>
+  </aside>
+
+  <!-- Main Content -->
+  <main class="main-content">
+    <!-- Header -->
+    <header class="dashboard-header">
+      <div class="header-left">
+        <h1 id="cluster-title">Cluster Dashboard</h1>
+        <span class="cluster-status" id="cluster-status">Loading...</span>
+      </div>
+      <div class="header-right">
+        <button class="btn-secondary" id="refresh-btn" title="Refresh">Refresh</button>
+        <button class="btn-secondary" id="stop-btn">Stop Cluster</button>
+        <button class="btn-danger" id="delete-btn">Delete Cluster</button>
+      </div>
+    </header>
+
+    <!-- Overview Section -->
+    <section id="overview-section" class="section active">
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-label">Cluster Status</div>
+          <div class="stat-value" id="stat-status">--</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Total Nodes</div>
+          <div class="stat-value" id="stat-nodes">--</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Shards</div>
+          <div class="stat-value" id="stat-shards">--</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Config Servers</div>
+          <div class="stat-value" id="stat-config">--</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>Cluster Nodes</h3>
+        <div class="table-container">
+          <table id="nodes-table">
+            <thead>
+              <tr>
+                <th>Node ID</th>
+                <th>Type</th>
+                <th>Port</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody id="nodes-tbody">
+              <tr><td colspan="4" class="loading">Loading nodes...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- Nodes Section -->
+    <section id="nodes-section" class="section">
+      <div class="card">
+        <h3>Node Management</h3>
+        <div class="table-container">
+          <table id="nodes-management-table">
+            <thead>
+              <tr>
+                <th>Node ID</th>
+                <th>Type</th>
+                <th>Port</th>
+                <th>Status</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="nodes-management-tbody">
+              <tr><td colspan="5" class="loading">Loading nodes...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- Shards Section -->
+    <section id="shards-section" class="section">
+      <div class="card">
+        <div class="card-header">
+          <h3>Shard Management</h3>
+          <button class="btn-primary" id="rebalance-btn">Rebalance Shards</button>
+        </div>
+        <div class="table-container">
+          <table id="shards-table">
+            <thead>
+              <tr>
+                <th>Shard ID</th>
+                <th>Host</th>
+                <th>State</th>
+              </tr>
+            </thead>
+            <tbody id="shards-tbody">
+              <tr><td colspan="3" class="loading">Loading shards...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- Databases Section -->
+    <section id="databases-section" class="section">
+      <div class="card">
+        <div class="card-header">
+          <h3>Databases</h3>
+          <button class="btn-primary" onclick="openCreateDatabaseModal()">+ Create Database</button>
+        </div>
+        <div class="table-container">
+          <table id="databases-table">
+            <thead>
+              <tr>
+                <th>Database Name</th>
+                <th>Sharding</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="databases-tbody">
+              <tr><td colspan="3" class="loading">Loading databases...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Collections Card -->
+      <div class="card" id="collections-card" style="display: none;">
+        <div class="card-header">
+          <h3>Collections in: <span id="selected-db-name"></span></h3>
+          <button class="btn-primary" onclick="openCreateCollectionModal()">+ Create Collection</button>
+        </div>
+        <div class="table-container">
+          <table id="collections-table">
+            <thead>
+              <tr>
+                <th>Collection Name</th>
+                <th>Sharded</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="collections-tbody">
+              <tr><td colspan="3" class="loading">Select a database</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- Data Management Section -->
+    <section id="data-section" class="section">
+      <div class="card">
+        <div class="card-header">
+          <h3>Insert Document</h3>
+        </div>
+        <div class="form-group">
+          <label>Database</label>
+          <select id="data-db-select" onchange="loadCollectionsForData()">
+            <option value="">Select Database</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Collection</label>
+          <select id="data-collection-select">
+            <option value="">Select Collection</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Document (JSON)</label>
+          <textarea id="document-json" rows="6" placeholder='{"name": "John", "age": 30, "city": "NYC"}'></textarea>
+        </div>
+        <button class="btn-primary" onclick="insertDocument()">Insert Document</button>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <h3>Bulk Upload</h3>
+        </div>
+        <div class="form-group">
+          <label>Database</label>
+          <select id="bulk-db-select" onchange="loadCollectionsForBulk()">
+            <option value="">Select Database</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Collection</label>
+          <select id="bulk-collection-select">
+            <option value="">Select Collection</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>JSON File</label>
+          <input type="file" id="bulk-file" accept=".json">
+        </div>
+        <div class="form-group">
+          <label>Batch Size</label>
+          <input type="number" id="batch-size" value="1000" min="100" max="10000">
+        </div>
+        <button class="btn-primary" onclick="bulkUpload()">Upload</button>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <h3>View Documents</h3>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Database</label>
+            <select id="view-db-select" onchange="loadCollectionsForView()">
+              <option value="">Select Database</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Collection</label>
+            <select id="view-collection-select">
+              <option value="">Select Collection</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Shard Key</label>
+            <input type="text" id="view-shard-key" placeholder="e.g., userId">
+          </div>
+          <button class="btn-primary" onclick="viewDocuments()">Load Documents</button>
+        </div>
+        <div class="table-container">
+          <table id="documents-table">
+            <thead>
+              <tr>
+                <th>Document</th>
+                <th>Shard</th>
+              </tr>
+            </thead>
+            <tbody id="documents-tbody">
+              <tr><td colspan="2" class="loading">Select database and collection</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- Backup & Restore Section -->
+    <section id="backup-section" class="section">
+      <div class="stats-grid">
+        <div class="stat-card clickable" onclick="createBackup(false)">
+          <div class="stat-label">Create Backup</div>
+          <div class="stat-value">BACKUP</div>
+        </div>
+        <div class="stat-card clickable" onclick="createBackup(true)">
+          <div class="stat-label">Create Compressed Backup</div>
+          <div class="stat-value">ZIP</div>
+        </div>
+        <div class="stat-card clickable" onclick="loadBackups()">
+          <div class="stat-label">Refresh Backups</div>
+          <div class="stat-value">REFRESH</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <h3>Available Backups</h3>
+        </div>
+        <div class="table-container">
+          <table id="backups-table">
+            <thead>
+              <tr>
+                <th>Timestamp</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="backups-tbody">
+              <tr><td colspan="2" class="loading">Loading backups...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <h3>Restore from Backup</h3>
+        </div>
+        <div class="form-group">
+          <label>Backup Timestamp</label>
+          <select id="restore-timestamp">
+            <option value="">Select Backup</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Restore Type</label>
+          <select id="restore-type">
+            <option value="cluster">Full Cluster</option>
+            <option value="shard">Single Shard</option>
+          </select>
+        </div>
+        <div class="form-group" id="shard-select-group" style="display: none;">
+          <label>Shard</label>
+          <select id="restore-shard">
+            <option value="">Select Shard</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>
+            <input type="checkbox" id="restore-drop"> Drop existing data before restore
+          </label>
+        </div>
+        <button class="btn-primary" onclick="restoreBackup()">Restore Backup</button>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <h3>Backup Progress</h3>
+        </div>
+        <div id="backup-progress-container">
+          <div class="progress-bar">
+            <div class="progress-fill" id="backup-progress-fill" style="width: 0%"></div>
+          </div>
+          <div id="backup-progress-text">No backup in progress</div>
+        </div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<script src="js/dashboard.js"></script>
+</body>
+</html>
+

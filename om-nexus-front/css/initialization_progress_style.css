@@ -98,10 +98,29 @@ body {
   color: #155724;
 }
 
+.step.failed {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
+/* Error Message */
+.error-message {
+  background: #fee2e2;
+  color: #b91c1c;
+  padding: 12px 16px;
+  border-radius: 8px;
+  font-size: 14px;
+  margin-top: 20px;
+  border: 1px solid #fca5a5;
+}
+
 /* Button */
 .button-group {
   margin-top: 32px;
   text-align: center;
+  display: flex;
+  gap: 12px;
+  justify-content: center;
 }
 
 .btn-primary {
@@ -123,6 +142,14 @@ body {
 
 .btn-primary.show {
   display: inline-block;
+}
+
+.btn-error {
+  background: #A03350;
+}
+
+.btn-error:hover {
+  background: #c13d60;
 }
 
 /* Responsive */

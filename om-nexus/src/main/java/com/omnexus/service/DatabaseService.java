@@ -123,6 +123,47 @@ public class DatabaseService {
         }
         return dbNames;
     }
+
+    // List all databases with sharding status
+    public List<Map<String, Object>> listDatabasesWithStatus(String clusterId){
+        List<Map<String, Object>> result = new ArrayList<>();
+        ClusterConfig clusterConfig = configServerService.loadClusterConfig(clusterId);
+        if(clusterConfig == null){
+            System.out.println("Cluster not found: "+clusterId);
+            return result;
+        }
+        try(MongoClient client = MongoConnectionUtil.createClientForNodeId(clusterConfig,"mongos")){
+            // Get all database names
+            List<String> dbNames = new ArrayList<>();
+            client.listDatabaseNames().into(dbNames);
+
+            // Get sharding status from config.databases
+            MongoDatabase configDb = client.getDatabase("config");
+            MongoCollection<Document> databasesCollection = configDb.getCollection("databases");
+
+            for(String dbName : dbNames) {
+                Map<String, Object> dbInfo = new HashMap<>();
+                dbInfo.put("name", dbName);
+
+                // Check if database has sharding enabled
+                Document dbEntry = databasesCollection.find(Filters.eq("_id", dbName)).first();
+                if(dbEntry != null) {
+                    Boolean partitioned = dbEntry.getBoolean("partitioned", false);
+                    dbInfo.put("shardingEnabled", partitioned);
+                    dbInfo.put("primaryShard", dbEntry.getString("primary"));
+                } else {
+                    // System databases (admin, local, config) or non-sharded
+                    dbInfo.put("shardingEnabled", false);
+                    dbInfo.put("primaryShard", null);
+                }
+
+                result.add(dbInfo);
+            }
+        } catch (Exception e) {
+            System.out.println("Failed to list databases with status: " + e.getMessage());
+        }
+        return result;
+    }
     // Get collection Statistics
     public Document getCollectionStats(String clusterId,String databaseName,String collectionName){
         ClusterConfig clusterConfig = configServerService.loadClusterConfig(clusterId);
@@ -139,6 +180,54 @@ public class DatabaseService {
             return null;
         }
     }
+    // List collections in a database with sharding status
+    public Map<String, Object> listCollectionsWithStatus(String clusterId, String databaseName) {
+        Map<String, Object> result = new HashMap<>();
+        Map<String, Object> collections = new HashMap<>();
+
+        ClusterConfig clusterConfig = configServerService.loadClusterConfig(clusterId);
+        if (clusterConfig == null) {
+            System.out.println("Cluster not found: " + clusterId);
+            return Map.of("error", "Cluster not found: " + clusterId);
+        }
+
+        try (MongoClient client = MongoConnectionUtil.createClientForNodeId(clusterConfig, "mongos")) {
+            MongoDatabase database = client.getDatabase(databaseName);
+            MongoDatabase configDb = client.getDatabase("config");
+
+            // Get sharded collections from config.collections
+            MongoCollection<Document> configCollections = configDb.getCollection("collections");
+            List<Document> shardedCollections = configCollections.find().into(new ArrayList<>());
+
+            // Create a set of sharded collection namespaces
+            java.util.Set<String> shardedNamespaces = new java.util.HashSet<>();
+            for (Document doc : shardedCollections) {
+                String id = doc.getString("_id");
+                if (id != null && id.startsWith(databaseName + ".")) {
+                    shardedNamespaces.add(id);
+                }
+            }
+
+            // List all collections in the database
+            for (String collName : database.listCollectionNames()) {
+                Map<String, Object> collInfo = new HashMap<>();
+                String namespace = databaseName + "." + collName;
+                boolean isSharded = shardedNamespaces.contains(namespace);
+                collInfo.put("sharded", isSharded);
+                collections.put(collName, collInfo);
+            }
+
+            result.put("database", databaseName);
+            result.put("collections", collections);
+
+        } catch (Exception e) {
+            System.out.println("Failed to list collections: " + e.getMessage());
+            return Map.of("error", e.getMessage());
+        }
+
+        return result;
+    }
+
     // Get detailed shard distribution for a database
     public Map<String,Object> getShardDistribution(String clusterId,String databaseName){
         ClusterConfig clusterConfig = configServerService.loadClusterConfig(clusterId);

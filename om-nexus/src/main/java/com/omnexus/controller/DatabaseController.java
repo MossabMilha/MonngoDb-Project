@@ -64,10 +64,22 @@ public class DatabaseController {
         return databaseService.listDatabases(clusterId);
     }
 
+    //List all databases with sharding status
+    @GetMapping("/{clusterId}/listWithStatus")
+    public List<Map<String, Object>> listDatabasesWithStatus(@PathVariable String clusterId){
+        return databaseService.listDatabasesWithStatus(clusterId);
+    }
+
     // Get collection stats
     @GetMapping("/{clusterId}/collection/{collectionName}/stats")
     public Document getCollectionStats(@PathVariable String clusterId,@RequestParam String databaseName,@PathVariable String collectionName){
         return databaseService.getCollectionStats(clusterId,databaseName,collectionName);
+    }
+
+    // List collections with sharding status (used by frontend)
+    @GetMapping("/{clusterId}/collections")
+    public Map<String,Object> listCollectionsWithStatus(@PathVariable String clusterId,@RequestParam String databaseName){
+        return databaseService.listCollectionsWithStatus(clusterId,databaseName);
     }
 
     // Get shard distribution per database
