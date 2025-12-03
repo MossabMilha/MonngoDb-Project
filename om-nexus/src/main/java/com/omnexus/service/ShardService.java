@@ -15,6 +15,7 @@ import org.springframework.stereotype.Service;
 
 import java.io.File;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 @Service
@@ -120,12 +121,21 @@ public class ShardService {
         }
     }
     public String buildShardConnectionString(String shardId, ClusterConfig config) {
+        // Find the node to get the replica set name
         NodeInfo shardNode = config.getNodes().stream()
                 .filter(n -> n.getNodeId().equals(shardId))
                 .findFirst()
                 .orElseThrow(() -> new RuntimeException("Shard not found: " + shardId));
 
-        return shardNode.getReplicaSet() + "/localhost:" + shardNode.getPort();
+        String replicaSetName = shardNode.getReplicaSet();
+
+        // Get all nodes in this replica set
+        String members = config.getNodes().stream()
+                .filter(n -> "shard".equals(n.getType()) && replicaSetName.equals(n.getReplicaSet()))
+                .map(n -> "localhost:" + n.getPort())
+                .collect(java.util.stream.Collectors.joining(","));
+
+        return replicaSetName + "/" + members;
     }
     public boolean splitChunks(String clusterId,String databaseName,String collectionName,String shardKey,List<Object> splitValues){
         try{
@@ -160,16 +170,18 @@ public class ShardService {
                 MongoDatabase configDb = client.getDatabase("config");
                 MongoDatabase adminDb = client.getDatabase("admin");
 
-                // Get all available shards
-                List<String> shardNames = getAvailableShards(clusterConfig);
+                // Get all available shards from MongoDB config (not from local config)
+                List<String> shardNames = getRegisteredShards(configDb);
+                System.out.println("Registered shards in MongoDB: " + shardNames);
+
                 if (shardNames.size() < 2) {
-                    System.out.println("Need at least 2 shards to distribute chunks");
+                    System.out.println("Need at least 2 shards to distribute chunks. Found: " + shardNames.size());
                     return false;
                 }
 
                 // Get chunks for this collection (MongoDB 8.0 compatible)
                 List<Document> chunks = getChunksForCollection(configDb, databaseName, collectionName);
-                System.out.println("Found " + chunks.size() + " chunks to distribute");
+                System.out.println("Found " + chunks.size() + " chunks to distribute across " + shardNames.size() + " shards");
 
                 if (chunks.isEmpty()) {
                     System.out.println("No chunks found for " + databaseName + "." + collectionName);
@@ -178,9 +190,14 @@ public class ShardService {
 
                 // Distribute chunks evenly across shards using round-robin
                 int shardIndex = 0;
+                String namespace = databaseName + "." + collectionName;
+
                 for (Document chunk : chunks) {
                     String currentShard = chunk.getString("shard");
                     String targetShard = shardNames.get(shardIndex % shardNames.size());
+
+                    System.out.println("Chunk " + shardIndex + ": current=" + currentShard + ", target=" + targetShard);
+                    System.out.println("  Chunk details: " + chunk.toJson());
 
                     // Only move if it's on a different shard
                     if (!targetShard.equals(currentShard)) {
@@ -189,19 +206,31 @@ public class ShardService {
                             String shardKey = min.keySet().iterator().next();
                             Object shardKeyValue = min.get(shardKey);
 
-                            // Skip MinKey values for movement
-                            if (!isMinKey(shardKeyValue)) {
-                                try {
-                                    Document moveCmd = new Document("moveChunk", databaseName + "." + collectionName)
+                            try {
+                                Document moveCmd;
+
+                                // For MinKey chunks, use bounds instead of find
+                                if (isMinKey(shardKeyValue)) {
+                                    Document max = (Document) chunk.get("max");
+                                    moveCmd = new Document("moveChunk", namespace)
+                                            .append("bounds", Arrays.asList(min, max))
+                                            .append("to", targetShard);
+                                    System.out.println("Moving MinKey chunk using bounds to " + targetShard);
+                                } else {
+                                    moveCmd = new Document("moveChunk", namespace)
                                             .append("find", new Document(shardKey, shardKeyValue))
                                             .append("to", targetShard);
                                     System.out.println("Moving chunk with " + shardKey + "=" + shardKeyValue + " to " + targetShard);
-                                    adminDb.runCommand(moveCmd);
-                                } catch (Exception e) {
-                                    System.out.println("Failed to move chunk: " + e.getMessage());
                                 }
+
+                                Document result = adminDb.runCommand(moveCmd);
+                                System.out.println("Move result: " + result.toJson());
+                            } catch (Exception e) {
+                                System.out.println("Failed to move chunk: " + e.getMessage());
                             }
                         }
+                    } else {
+                        System.out.println("  Chunk already on target shard, skipping");
                     }
                     shardIndex++;
                 }
@@ -211,6 +240,21 @@ public class ShardService {
             e.printStackTrace();
             return false;
         }
+    }
+
+    /**
+     * Get the actual shard names registered in MongoDB's config.shards collection.
+     */
+    private List<String> getRegisteredShards(MongoDatabase configDb) {
+        List<String> shardNames = new ArrayList<>();
+        MongoCollection<Document> shardsCollection = configDb.getCollection("shards");
+        for (Document shard : shardsCollection.find()) {
+            String shardId = shard.getString("_id");
+            if (shardId != null) {
+                shardNames.add(shardId);
+            }
+        }
+        return shardNames;
     }
 
     /**
@@ -254,16 +298,14 @@ public class ShardService {
     /**
      * Get shard names as registered in MongoDB (uses replicaSet name, not nodeId).
      * MongoDB registers shards by their replica set name, e.g., "shard1" not "shard-1".
+     * Returns unique shard names (since multiple nodes can belong to the same replica set).
      */
     private List<String> getAvailableShards(ClusterConfig clusterConfig) {
-        List<String> shardNames = new ArrayList<>();
-        for (NodeInfo node : clusterConfig.getNodes()) {
-            if ("shard".equals(node.getType())) {
-                // Use replicaSet name which is how MongoDB identifies the shard
-                shardNames.add(node.getReplicaSet());
-            }
-        }
-        return shardNames;
+        return clusterConfig.getNodes().stream()
+                .filter(node -> "shard".equals(node.getType()))
+                .map(NodeInfo::getReplicaSet)
+                .distinct()
+                .collect(java.util.stream.Collectors.toList());
     }
 
     public boolean rebalanceShards(String clusterId) {

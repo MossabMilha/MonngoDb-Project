@@ -1,0 +1,1 @@
+{"indexes":[{"v":{"$numberInt":"2"},"key":{"_id":{"$numberInt":"1"}},"name":"_id_"}],"uuid":"babd83edd6c54913a4387b4097d93631","collectionName":"sharding_configsvr_coordinators","type":"collection"}

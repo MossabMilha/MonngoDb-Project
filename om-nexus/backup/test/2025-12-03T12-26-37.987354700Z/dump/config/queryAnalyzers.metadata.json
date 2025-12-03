@@ -1,0 +1,1 @@
+{"indexes":[{"v":{"$numberInt":"2"},"key":{"_id":{"$numberInt":"1"}},"name":"_id_"},{"v":{"$numberInt":"2"},"key":{"collUuid":{"$numberInt":"1"}},"name":"collUuid_1","unique":true}],"uuid":"a804e5884d0d4498964980925fb7d7f5","collectionName":"queryAnalyzers","type":"collection"}

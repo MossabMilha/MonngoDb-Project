@@ -26,7 +26,8 @@ public class ClusterController {
     public ResponseEntity<?> createCluster(
             @RequestParam String clusterId,
             @RequestParam int shards,
-            @RequestParam int configServers) {
+            @RequestParam int configServers,
+            @RequestParam(defaultValue = "1") int replicasPerShard) {
 
         try {
             // Check if cluster already exists
@@ -36,7 +37,7 @@ public class ClusterController {
                         .body(Map.of("error", "Cluster already exists: " + clusterId));
             }
 
-            ClusterConfig config = clusterService.createCluster(clusterId, shards, configServers);
+            ClusterConfig config = clusterService.createCluster(clusterId, shards, configServers, replicasPerShard);
             configurationService.saveClusterConfig(config);
 
             return ResponseEntity.ok(config);

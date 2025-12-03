@@ -1,0 +1,1 @@
+{"indexes":[{"v":{"$numberInt":"2"},"key":{"_id":{"$numberInt":"1"}},"name":"_id_"},{"v":{"$numberInt":"2"},"key":{"host":{"$numberInt":"1"}},"name":"host_1","unique":true}],"uuid":"8fb7327230e1491992b27ab6202782bf","collectionName":"shards","type":"collection"}

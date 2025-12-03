@@ -140,27 +140,50 @@ public class DatabaseService {
             // Get sharding status from config.databases
             MongoDatabase configDb = client.getDatabase("config");
             MongoCollection<Document> databasesCollection = configDb.getCollection("databases");
+            MongoCollection<Document> collectionsConfig = configDb.getCollection("collections");
 
             for(String dbName : dbNames) {
                 Map<String, Object> dbInfo = new HashMap<>();
                 dbInfo.put("name", dbName);
 
-                // Check if database has sharding enabled
+                boolean hasSharding = false;
+                String primaryShard = null;
+
+                // Check if database has sharding enabled from config.databases
                 Document dbEntry = databasesCollection.find(Filters.eq("_id", dbName)).first();
                 if(dbEntry != null) {
-                    Boolean partitioned = dbEntry.getBoolean("partitioned", false);
-                    dbInfo.put("shardingEnabled", partitioned);
-                    dbInfo.put("primaryShard", dbEntry.getString("primary"));
-                } else {
-                    // System databases (admin, local, config) or non-sharded
-                    dbInfo.put("shardingEnabled", false);
-                    dbInfo.put("primaryShard", null);
+                    // In MongoDB 5.0+, 'partitioned' field may not exist. Check for it safely.
+                    Object partitionedObj = dbEntry.get("partitioned");
+                    if (partitionedObj instanceof Boolean && (Boolean) partitionedObj) {
+                        hasSharding = true;
+                    }
+                    primaryShard = dbEntry.getString("primary");
                 }
+
+                // Also check if database has any sharded collections in config.collections
+                // This is more reliable for MongoDB 5.0+ where 'partitioned' may not be set
+                if (!hasSharding) {
+                    String prefix = dbName + ".";
+                    long shardedCollCount = collectionsConfig.countDocuments(
+                        Filters.and(
+                            Filters.regex("_id", "^" + prefix),
+                            Filters.exists("key")
+                        )
+                    );
+                    if (shardedCollCount > 0) {
+                        hasSharding = true;
+                        System.out.println("Database " + dbName + " has " + shardedCollCount + " sharded collection(s)");
+                    }
+                }
+
+                dbInfo.put("shardingEnabled", hasSharding);
+                dbInfo.put("primaryShard", primaryShard);
 
                 result.add(dbInfo);
             }
         } catch (Exception e) {
             System.out.println("Failed to list databases with status: " + e.getMessage());
+            e.printStackTrace();
         }
         return result;
     }

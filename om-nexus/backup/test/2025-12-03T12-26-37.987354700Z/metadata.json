@@ -1,0 +1,17 @@
+{
+  "databases" : [ "admin", "config", "Main" ],
+  "success" : true,
+  "dumpPath" : "backup\\test\\2025-12-03T12-26-37.987354700Z\\dump",
+  "clusterId" : "test",
+  "compressed" : false,
+  "timestamp" : "2025-12-03T12-26-37.987354700Z",
+  "artifacts" : [ {
+    "port" : 27999,
+    "type" : "mongos-dump",
+    "success" : true
+  }, {
+    "port" : 28000,
+    "type" : "config",
+    "success" : true
+  } ]
+}

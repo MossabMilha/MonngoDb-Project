@@ -1,0 +1,1 @@
+{"indexes":[{"v":{"$numberInt":"2"},"key":{"_id":{"$numberInt":"1"}},"name":"_id_"}],"uuid":"b7b479aa42e14aca8ea809a0d78d02b0","collectionName":"vectorClock","type":"collection"}

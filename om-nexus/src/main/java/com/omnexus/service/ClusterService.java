@@ -13,11 +13,12 @@ import java.util.List;
 @Service
 public class ClusterService {
 
-    public ClusterConfig createCluster(String clusterId, int shards, int configServers) {
+    public ClusterConfig createCluster(String clusterId, int shards, int configServers, int replicasPerShard) {
         ClusterConfig config = new ClusterConfig();
         config.setClusterId(clusterId);
         config.setNumberOfShards(shards);
         config.setNumberOfConfigServers(configServers);
+        config.setReplicaSetSize(replicasPerShard);
 
         List<NodeInfo> nodes = new ArrayList<>();
         int currentPort = 28000;
@@ -34,16 +35,21 @@ public class ClusterService {
             nodes.add(configNode);
         }
 
-        // Create Shard nodes
-        for(int i = 1; i <= shards; i++){
-            NodeInfo shardNode = new NodeInfo(
-                    "shard-" + i,
-                    "shard",
-                    currentPort++,
-                    config.getBaseDataPath() + File.separator + "shard" + File.separator + "shard" + i
-            );
-            shardNode.setReplicaSet("shard" + i);
-            nodes.add(shardNode);
+        // Create Shard nodes with replicas
+        // Each shard has multiple replica nodes (e.g., shard1 has shard-1-0, shard-1-1, shard-1-2)
+        for (int i = 1; i <= shards; i++) {
+            String replicaSetName = "shard" + i;
+            for (int r = 0; r < replicasPerShard; r++) {
+                String nodeId = "shard-" + i + "-" + r;
+                NodeInfo shardNode = new NodeInfo(
+                        nodeId,
+                        "shard",
+                        currentPort++,
+                        config.getBaseDataPath() + File.separator + "shard" + File.separator + nodeId
+                );
+                shardNode.setReplicaSet(replicaSetName);
+                nodes.add(shardNode);
+            }
         }
 
         config.setNodes(nodes);
@@ -202,15 +208,33 @@ public class ClusterService {
             // 3. Initialize shard replica sets and add to cluster
             System.out.println("Step 3: Initializing shard replica sets and adding to cluster...");
 
+            // Group shard nodes by replica set name
+            java.util.Map<String, List<NodeInfo>> shardsByReplicaSet = new java.util.HashMap<>();
             for (NodeInfo shardNode : shardNodes) {
-                String shardName = shardNode.getReplicaSet();
-                String[] shardMembers = {"localhost:" + shardNode.getPort()};
+                String replicaSetName = shardNode.getReplicaSet();
+                shardsByReplicaSet.computeIfAbsent(replicaSetName, k -> new ArrayList<>()).add(shardNode);
+            }
+
+            // Initialize each replica set with all its members
+            for (java.util.Map.Entry<String, List<NodeInfo>> entry : shardsByReplicaSet.entrySet()) {
+                String shardName = entry.getKey();
+                List<NodeInfo> replicaNodes = entry.getValue();
+
+                // Build array of all members for this replica set
+                String[] shardMembers = replicaNodes.stream()
+                        .map(node -> "localhost:" + node.getPort())
+                        .toArray(String[]::new);
+
+                // Use the first node's port for initial connection
+                int firstPort = replicaNodes.get(0).getPort();
+
+                System.out.println("Shard " + shardName + " has " + replicaNodes.size() + " replica members: " + String.join(", ", shardMembers));
 
                 // Check if shard replica set is already initialized
-                if (!MongoConnectionUtil.isReplicaSetInitialized("localhost", shardNode.getPort())) {
-                    System.out.println("Initializing shard: " + shardName);
+                if (!MongoConnectionUtil.isReplicaSetInitialized("localhost", firstPort)) {
+                    System.out.println("Initializing shard replica set: " + shardName);
                     boolean shardInitialized = MongoConnectionUtil.initializeReplicateSet(
-                            "localhost", shardNode.getPort(), shardName, shardMembers
+                            "localhost", firstPort, shardName, shardMembers
                     );
 
                     if (!shardInitialized) {
@@ -218,7 +242,8 @@ public class ClusterService {
                         continue;
                     }
 
-                    Thread.sleep(3000);
+                    // Wait longer for replica set with multiple members to elect primary
+                    Thread.sleep(replicaNodes.size() > 1 ? 8000 : 3000);
                 } else {
                     System.out.println("Shard " + shardName + " already initialized");
                 }
@@ -226,8 +251,10 @@ public class ClusterService {
                 // Check if shard is already added to cluster
                 if (!MongoConnectionUtil.isShardInCluster("localhost", 27999, shardName)) {
                     System.out.println("Adding shard to cluster: " + shardName);
+                    // Build connection string with all replica members
+                    String connectionString = shardName + "/" + String.join(",", shardMembers);
                     boolean shardAdded = MongoConnectionUtil.addShardToCluster(
-                            "localhost", 27999, shardName + "/localhost:" + shardNode.getPort()
+                            "localhost", 27999, connectionString
                     );
 
                     if (!shardAdded) {
